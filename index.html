@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1216">
+<title>Direct Call</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --panel2:#1e232b; --line:#2a313b;
+    --text:#e8ecf1; --dim:#8a95a3; --accent:#3ddc97; --accent-ink:#06261a;
+    --red:#ff5a5f; --amber:#ffb547; --radius:14px;
+    font-family: system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text)}
+  button,input,select{font:inherit;color:inherit}
+  .hidden{display:none!important}
+
+  /* ---------- setup ---------- */
+  #setup{min-height:100%;display:grid;place-items:center;padding:24px}
+  .card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+  .card h1{margin:0 0 4px;font-size:22px}
+  .card p.sub{margin:0 0 20px;color:var(--dim);font-size:14px;line-height:1.4}
+  label{display:block;font-size:13px;color:var(--dim);margin:14px 0 6px}
+  input,select{width:100%;padding:11px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  .hint{font-size:12px;color:var(--dim);margin-top:5px;line-height:1.35}
+  details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+  summary{cursor:pointer;color:var(--dim);font-size:13px}
+  .btn{border:0;border-radius:10px;padding:12px 16px;cursor:pointer;background:var(--panel2);border:1px solid var(--line)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+  .btn.danger{background:var(--red);color:#fff;border-color:transparent;font-weight:600}
+  .btn.wide{width:100%;margin-top:20px}
+  .warn{background:#3a2a0e;border:1px solid #6b4b12;color:var(--amber);padding:10px 12px;border-radius:10px;font-size:13px;margin-bottom:12px}
+
+  /* ---------- app ---------- */
+  #app{height:100%;display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header .net{font-weight:600}
+  header .status{display:flex;align-items:center;gap:7px;color:var(--dim);font-size:13px;margin-right:auto}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);flex:none}
+  .dot.on{background:var(--accent)}
+  header .btn{padding:7px 12px;font-size:14px}
+
+  main{flex:1;display:grid;grid-template-columns:1fr 300px;min-height:0}
+  #stage{position:relative;background:#000;min-height:0;overflow:hidden}
+  #remote{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+  #local{position:absolute;right:14px;top:14px;width:26%;max-width:240px;min-width:110px;aspect-ratio:4/3;object-fit:cover;
+         border-radius:10px;border:2px solid rgba(255,255,255,.18);background:#111;transform:scaleX(-1);z-index:2}
+  #local.noflip{transform:none}
+  #stageMsg{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--dim);padding:20px;font-size:15px;line-height:1.5}
+  #stageMsg b{color:var(--text);font-size:20px;display:block;margin-bottom:4px}
+  #callInfo{position:absolute;left:14px;top:14px;z-index:2;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:8px;font-size:12px;color:#cfd6de;line-height:1.5}
+  #controls{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:10px;z-index:3;
+            background:rgba(15,18,22,.72);padding:8px;border-radius:999px;backdrop-filter:blur(6px)}
+  .ctl{width:50px;height:50px;border-radius:50%;border:0;cursor:pointer;background:#2a313b;display:grid;place-items:center}
+  .ctl svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ctl.off{background:#5a2326}
+  .ctl.hang{background:var(--red)}
+  .ctl:disabled{opacity:.35;cursor:not-allowed}
+
+  aside{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  aside h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:16px 16px 8px}
+  #people{list-style:none;margin:0;padding:0 8px;overflow:auto;flex:1}
+  #people li{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px}
+  #people li.active{background:var(--panel2)}
+  .av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;flex:none;color:#0f1216}
+  .who{flex:1;min-width:0}
+  .who .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who .s{font-size:12px;color:var(--dim)}
+  .who .s.busy{color:var(--amber)}
+  #people .btn{padding:7px 12px;font-size:13px}
+  .empty{color:var(--dim);font-size:13px;padding:8px 10px;line-height:1.5}
+  aside .foot{padding:12px;border-top:1px solid var(--line);display:flex;gap:8px}
+  aside .foot .btn{flex:1;font-size:13px;padding:9px}
+
+  /* ---------- incoming modal ---------- */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:50;padding:20px}
+  .modal .card{text-align:center}
+  .modal .av{width:72px;height:72px;font-size:28px;margin:0 auto 14px;animation:pulse 1.2s infinite}
+  .modal .row{display:flex;gap:12px;margin-top:20px}
+  .modal .row .btn{flex:1}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 22px rgba(61,220,151,0)}}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a313b;color:var(--text);padding:10px 16px;
+         border-radius:10px;font-size:14px;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+  #toast.show{opacity:1}
+
+  @media (max-width:760px){
+    main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+    aside{border-left:0;border-top:1px solid var(--line);max-height:38vh}
+    #local{width:32%}
+    .ctl{width:46px;height:46px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= SETUP ================= -->
+<div id="setup">
+  <div class="card">
+    <h1>Direct Call</h1>
+    <p class="sub">Peer-to-peer video calls. Video goes straight between devices. People find each other through public relay networks, so there's no server for you to run.</p>
+    <div id="insecure" class="warn hidden">This page isn't on HTTPS, so the browser will block the camera. Host it on GitHub Pages (or open it via <code>localhost</code>).</div>
+
+    <label for="name">Your name</label>
+    <input id="name" maxlength="32" placeholder="e.g. Brian" autocomplete="nickname">
+
+    <label for="net">Network code</label>
+    <input id="net" maxlength="64" placeholder="e.g. amato-family" autocomplete="off" autocapitalize="off">
+    <div class="hint">Everyone who enters the same code shows up in the same list. Make it something hard to guess.</div>
+
+    <label for="pass">Password <span style="opacity:.7">(optional, recommended)</span></label>
+    <input id="pass" type="password" placeholder="Shared by everyone in the network" autocomplete="off">
+    <div class="hint">Encrypts the connection handshake so the public relays can't read it, and keeps out anyone without it.</div>
+
+    <details>
+      <summary>Advanced</summary>
+      <label for="strat">Discovery network</label>
+      <select id="strat">
+        <option value="nostr">Nostr relays (default)</option>
+        <option value="torrent">BitTorrent trackers</option>
+        <option value="mqtt">MQTT brokers</option>
+      </select>
+      <div class="hint">Everyone must pick the same one. Switch if people can't see each other.</div>
+
+      <label for="turnUrl">TURN server (optional)</label>
+      <input id="turnUrl" placeholder="turn:example.com:3478" autocomplete="off">
+      <input id="turnUser" placeholder="username" style="margin-top:8px" autocomplete="off">
+      <input id="turnPass" type="password" placeholder="credential" style="margin-top:8px" autocomplete="off">
+      <div class="hint">Only needed if calls fail on cellular or strict networks.</div>
+    </details>
+
+    <button id="joinBtn" class="btn primary wide">Join</button>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <header>
+    <span class="net" id="netLabel"></span>
+    <span class="status"><span class="dot" id="dot"></span><span id="statusText">Looking for others…</span></span>
+    <button class="btn" id="leaveBtn">Leave</button>
+  </header>
+  <main>
+    <section id="stage">
+      <video id="remote" autoplay playsinline></video>
+      <div id="stageMsg"><div><b>Ready</b>Pick someone from the list to call.</div></div>
+      <video id="local" autoplay playsinline muted></video>
+      <div id="callInfo" class="hidden"></div>
+      <div id="controls">
+        <button class="ctl" id="micBtn" title="Mute / unmute">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button class="ctl" id="camBtn" title="Camera on / off">
+          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>
+        </button>
+        <button class="ctl" id="flipBtn" title="Switch camera">
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9.5 13.5a2.5 2.5 0 0 0 4.6 1.3M14.5 12.5a2.5 2.5 0 0 0-4.6-1.3"/></svg>
+        </button>
+        <button class="ctl" id="fsBtn" title="Full screen">
+          <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button>
+        <button class="ctl hang" id="hangBtn" title="Hang up" disabled>
+          <svg viewBox="0 0 24 24"><path d="M3 14c5-5 13-5 18 0l-2.5 2.5-3-1.5v-2.5a10 10 0 0 0-7 0V15l-3 1.5z"/></svg>
+        </button>
+      </div>
+    </section>
+    <aside>
+      <h2>Online</h2>
+      <ul id="people"></ul>
+      <div class="foot">
+        <button class="btn" id="inviteBtn">Share invite link</button>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- ================= INCOMING CALL ================= -->
+<div id="incoming" class="modal hidden">
+  <div class="card">
+    <div class="av" id="inAv"></div>
+    <div style="font-size:20px;font-weight:600" id="inName"></div>
+    <div style="color:var(--dim);margin-top:4px">is calling you</div>
+    <div class="row">
+      <button class="btn danger" id="declineBtn">Decline</button>
+      <button class="btn primary" id="acceptBtn">Accept</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+/* ---------------- config ---------------- */
+const APP_ID = 'directcall-p2p-v1-7f3a';          // keep the same on every copy of this page
+const STRATEGIES = {
+  nostr:   'https://esm.run/trystero@0.25',
+  torrent: 'https://esm.run/@trystero-p2p/torrent@0.25',
+  mqtt:    'https://esm.run/@trystero-p2p/mqtt@0.25',
+};
+const RING_TIMEOUT_MS = 30000;
+
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d = '') { try { return localStorage.getItem('dc_' + k) ?? d; } catch { return d; } },
+  set(k, v)      { try { localStorage.setItem('dc_' + k, v); } catch {} },
+};
+let toastTimer;
+function toast(msg, ms = 3500) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+function colorFor(s) {
+  let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 65% 62%)`;
+}
+function avatar(el, name) {
+  el.textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
+  el.style.background = colorFor(name || '?');
+}
+
+/* ---------------- state ---------------- */
+let room = null, myName = '', netCode = '';
+let local = null;                    // my MediaStream
+let audioCtx = null;
+const peers = new Map();             // peerId -> {name, busy}
+const remoteStreams = new Map();     // peerId -> MediaStream
+let call = { phase: 'idle', peer: null };   // idle | outgoing | incoming | incall
+let ringTimeout = null, ringLoop = null, statsLoop = null;
+let sendSig = () => {};
+
+/* ---------------- setup screen ---------------- */
+const params = new URLSearchParams(location.search);
+$('name').value  = store.get('name');
+$('net').value   = params.get('net') || store.get('net');
+$('pass').value  = store.get('pass');
+$('strat').value = params.get('via') || store.get('strat', 'nostr');
+$('turnUrl').value  = store.get('turnUrl');
+$('turnUser').value = store.get('turnUser');
+$('turnPass').value = store.get('turnPass');
+if (!window.isSecureContext) $('insecure').classList.remove('hidden');
+
+$('joinBtn').onclick = join;
+for (const id of ['name', 'net', 'pass']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+
+async function join() {
+  myName  = $('name').value.trim() || 'Guest';
+  netCode = $('net').value.trim();
+  const pass = $('pass').value;
+  const strat = $('strat').value;
+  if (!netCode) { toast('Enter a network code'); $('net').focus(); return; }
+
+  store.set('name', myName); store.set('net', netCode); store.set('pass', pass); store.set('strat', strat);
+  store.set('turnUrl', $('turnUrl').value.trim()); store.set('turnUser', $('turnUser').value.trim()); store.set('turnPass', $('turnPass').value);
+
+  const btn = $('joinBtn'); btn.disabled = true; btn.textContent = 'Starting camera…';
+
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+
+  try { local = await getMedia(); }
+  catch (e) { local = null; toast('No camera/mic access. You can still receive calls. (' + e.name + ')', 6000); }
+
+  btn.textContent = 'Connecting…';
+  let mod;
+  try { mod = await import(STRATEGIES[strat]); }
+  catch (e) {
+    btn.disabled = false; btn.textContent = 'Join';
+    toast('Could not load the network library. Check your connection or try another discovery network.', 6000);
+    console.error(e); return;
+  }
+
+  const config = { appId: APP_ID };
+  if (pass) config.password = pass;
+  const turnUrl = $('turnUrl').value.trim();
+  if (turnUrl) config.turnConfig = [{ urls: turnUrl, username: $('turnUser').value.trim(), credential: $('turnPass').value }];
+
+  try {
+    room = mod.joinRoom(config, 'net:' + netCode, {
+      onJoinError: d => toast('Could not connect to a peer' + (pass ? ' (password mismatch?)' : '') + '.', 5000),
+    });
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Join';
+    toast('Join failed: ' + e.message, 6000); console.error(e); return;
+  }
+
+  wireRoom();
+  btn.disabled = false; btn.textContent = 'Join';
+  enterApp();
+}
+
+async function getMedia(deviceId) {
+  const video = deviceId ? { deviceId: { exact: deviceId } }
+                         : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } };
+  const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  try { return await navigator.mediaDevices.getUserMedia({ video, audio }); }
+  catch (e) {
+    if (e.name === 'NotAllowedError') throw e;
+    return await navigator.mediaDevices.getUserMedia({ audio });   // no camera? fall back to audio only
+  }
+}
+
+/* ---------------- room wiring ---------------- */
+function wireRoom() {
+  // signalling channel for our own call protocol (works with old array-style and new object-style APIs)
+  const act = room.makeAction('sig');
+  if (Array.isArray(act)) {
+    const [send, receive] = act;
+    sendSig = (data, target) => send(data, target ?? null);
+    receive((data, peerId) => onSig(data, peerId));
+  } else {
+    sendSig = (data, target) => { try { act.send(data, target ? { target } : undefined)?.catch?.(() => {}); } catch {} };
+    act.onMessage = (data, info) => onSig(data, info?.peerId ?? info);
+  }
+
+  room.onPeerJoin = id => {
+    if (!peers.has(id)) peers.set(id, { name: '…', busy: false });
+    sendSig({ t: 'hello', name: myName, busy: call.phase !== 'idle' }, id);
+    renderPeers();
+  };
+  room.onPeerLeave = id => {
+    if (call.peer === id) {
+      if (call.phase === 'incoming') hideIncoming();
+      endCall((peers.get(id)?.name || 'They') + ' disconnected', false);
+    }
+    peers.delete(id); remoteStreams.delete(id);
+    renderPeers();
+  };
+  room.onPeerStream = (stream, id) => {
+    remoteStreams.set(id, stream);
+    if (call.peer === id && call.phase === 'incall') showRemote(stream);
+  };
+}
+
+function broadcastHello() {
+  sendSig({ t: 'hello', name: myName, busy: call.phase !== 'idle' });
+}
+
+function onSig(m, id) {
+  if (!m || typeof m !== 'object') return;
+  const name = () => peers.get(id)?.name || 'Someone';
+  switch (m.t) {
+    case 'hello':
+      peers.set(id, { name: String(m.name || 'Guest').slice(0, 32), busy: !!m.busy });
+      renderPeers(); break;
+
+    case 'ring':
+      if (call.phase !== 'idle') { sendSig({ t: 'busy' }, id); break; }
+      call = { phase: 'incoming', peer: id };
+      showIncoming(name());
+      broadcastHello(); renderPeers(); break;
+
+    case 'cancel':
+      if (call.phase === 'incoming' && call.peer === id) {
+        hideIncoming(); resetCall(); toast('Missed call from ' + name());
+      } break;
+
+    case 'accept':
+      if (call.phase === 'outgoing' && call.peer === id) {
+        if (local) room.addStream(local, { target: id });
+        enterInCall();
+      } break;
+
+    case 'decline':
+    case 'busy':
+      if (call.phase === 'outgoing' && call.peer === id) {
+        resetCall(); toast(name() + (m.t === 'busy' ? ' is on another call' : ' declined'));
+      } break;
+
+    case 'hangup':
+      if (call.peer === id && call.phase !== 'idle') endCall(name() + ' hung up', false);
+      break;
+  }
+}
+
+/* ---------------- call flow ---------------- */
+function startCall(id) {
+  if (call.phase !== 'idle') return;
+  call = { phase: 'outgoing', peer: id };
+  sendSig({ t: 'ring' }, id);
+  setStage('Calling ' + (peers.get(id)?.name || '…'), 'Waiting for them to answer');
+  $('hangBtn').disabled = false;
+  ringTimeout = setTimeout(() => {
+    if (call.phase === 'outgoing') { sendSig({ t: 'cancel' }, id); resetCall(); toast('No answer'); }
+  }, RING_TIMEOUT_MS);
+  broadcastHello(); renderPeers();
+}
+
+function acceptCall() {
+  if (call.phase !== 'incoming') return;
+  const id = call.peer;
+  hideIncoming();
+  if (local) room.addStream(local, { target: id });
+  sendSig({ t: 'accept' }, id);
+  enterInCall();
+}
+
+function declineCall() {
+  if (call.phase !== 'incoming') return;
+  sendSig({ t: 'decline' }, call.peer);
+  hideIncoming(); resetCall();
+}
+
+function enterInCall() {
+  clearTimeout(ringTimeout);
+  call.phase = 'incall';
+  $('hangBtn').disabled = false;
+  const s = remoteStreams.get(call.peer);
+  if (s) showRemote(s);
+  else setStage('Connecting to ' + (peers.get(call.peer)?.name || '…'), 'Setting up video…');
+  startStats();
+  broadcastHello(); renderPeers();
+}
+
+function hangUp() {
+  if (call.phase === 'outgoing') { sendSig({ t: 'cancel' }, call.peer); resetCall(); return; }
+  if (call.phase === 'incall') endCall('Call ended', true);
+}
+
+function endCall(msg, notify) {
+  const id = call.peer;
+  if (id && notify) sendSig({ t: 'hangup' }, id);
+  if (id && local && call.phase === 'incall') { try { room.removeStream(local, { target: id }); } catch {} }
+  if (id) remoteStreams.delete(id);
+  resetCall();
+  if (msg) toast(msg);
+}
+
+function resetCall() {
+  clearTimeout(ringTimeout); stopRing(); stopStats();
+  call = { phase: 'idle', peer: null };
+  $('remote').srcObject = null;
+  $('hangBtn').disabled = true;
+  $('callInfo').classList.add('hidden');
+  setStage('Ready', 'Pick someone from the list to call.');
+  document.title = 'Direct Call';
+  if (room) broadcastHello();
+  renderPeers();
+}
+
+function showRemote(stream) {
+  const v = $('remote');
+  v.srcObject = stream;
+  v.play?.().catch(() => {});
+  $('stageMsg').classList.add('hidden');
+}
+
+/* ---------------- incoming UI + ringtone ---------------- */
+function showIncoming(name) {
+  avatar($('inAv'), name);
+  $('inName').textContent = name;
+  $('incoming').classList.remove('hidden');
+  document.title = '📞 ' + name + ' is calling';
+  startRing();
+  ringTimeout = setTimeout(() => { if (call.phase === 'incoming') { hideIncoming(); resetCall(); toast('Missed call from ' + name); } }, RING_TIMEOUT_MS + 2000);
+}
+function hideIncoming() { $('incoming').classList.add('hidden'); stopRing(); document.title = 'Direct Call'; }
+
+function startRing() {
+  stopRing();
+  const beep = () => {
+    navigator.vibrate?.([250, 150, 250]);
+    if (!audioCtx) return;
+    audioCtx.resume?.();
+    const t0 = audioCtx.currentTime;
+    for (const [f, dt] of [[880, 0], [660, 0.22]]) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t0 + dt);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.2);
+      o.start(t0 + dt); o.stop(t0 + dt + 0.22);
+    }
+  };
+  beep(); ringLoop = setInterval(beep, 1600);
+}
+function stopRing() { clearInterval(ringLoop); ringLoop = null; }
+
+/* ---------------- connection stats ---------------- */
+function startStats() {
+  stopStats();
+  const info = $('callInfo');
+  statsLoop = setInterval(async () => {
+    if (call.phase !== 'incall') return;
+    let pcs; try { pcs = room.getPeers(); } catch { return; }
+    const pc = pcs instanceof Map ? pcs.get(call.peer) : pcs?.[call.peer];
+    if (!pc?.getStats) return;
+    const st = await pc.getStats();
+    let res = '', fps = '', route = '', rtt = '';
+    st.forEach(r => {
+      if (r.type === 'inbound-rtp' && r.kind === 'video') {
+        if (r.frameWidth) res = `${r.frameWidth}×${r.frameHeight}`;
+        if (r.framesPerSecond) fps = `${Math.round(r.framesPerSecond)} fps`;
+      }
+      if (r.type === 'candidate-pair' && r.state === 'succeeded' && (r.nominated || r.selected)) {
+        const lc = st.get(r.localCandidateId);
+        if (lc) route = lc.candidateType === 'relay' ? 'via TURN relay' : 'direct';
+        if (r.currentRoundTripTime != null) rtt = `${Math.round(r.currentRoundTripTime * 1000)} ms`;
+      }
+    });
+    const parts = [peers.get(call.peer)?.name, route, rtt, res, fps].filter(Boolean);
+    info.textContent = parts.join(' · ');
+    info.classList.toggle('hidden', parts.length < 2);
+  }, 2000);
+}
+function stopStats() { clearInterval(statsLoop); statsLoop = null; }
+
+/* ---------------- main UI ---------------- */
+function enterApp() {
+  $('setup').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('netLabel').textContent = netCode;
+  const lv = $('local');
+  if (local && local.getVideoTracks().length) { lv.srcObject = local; lv.classList.remove('hidden'); }
+  else lv.classList.add('hidden');
+  updateCtlButtons();
+  resetCall();
+  history.replaceState(null, '', location.pathname + '?net=' + encodeURIComponent(netCode)
+    + ($('strat').value !== 'nostr' ? '&via=' + $('strat').value : ''));
+}
+
+function setStage(title, sub) {
+  const m = $('stageMsg');
+  m.innerHTML = ''; const d = document.createElement('div');
+  const b = document.createElement('b'); b.textContent = title; d.append(b, sub);
+  m.append(d); m.classList.remove('hidden');
+}
+
+function renderPeers() {
+  const ul = $('people'); ul.innerHTML = '';
+  const n = peers.size;
+  $('dot').classList.toggle('on', n > 0);
+  $('statusText').textContent = n ? `${n} other${n > 1 ? 's' : ''} online` : 'Looking for others…';
+
+  const me = document.createElement('li');
+  const mav = document.createElement('div'); mav.className = 'av'; avatar(mav, myName);
+  const mwho = document.createElement('div'); mwho.className = 'who';
+  mwho.innerHTML = '<div class="n"></div><div class="s">You</div>'; mwho.firstChild.textContent = myName;
+  me.append(mav, mwho); ul.append(me);
+
+  if (!n) {
+    const e = document.createElement('div'); e.className = 'empty';
+    e.textContent = 'No one else here yet. Give someone the network code (and password) or share the invite link. Discovery can take 5–20 seconds.';
+    ul.append(e); return;
+  }
+  [...peers.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name)).forEach(([id, p]) => {
+    const li = document.createElement('li');
+    if (call.peer === id) li.classList.add('active');
+    const av = document.createElement('div'); av.className = 'av'; avatar(av, p.name);
+    const who = document.createElement('div'); who.className = 'who';
+    const nn = document.createElement('div'); nn.className = 'n'; nn.textContent = p.name;
+    const ss = document.createElement('div'); ss.className = 's';
+    if (call.peer === id) ss.textContent = { outgoing: 'Calling…', incoming: 'Calling you…', incall: 'In call with you' }[call.phase];
+    else { ss.textContent = p.busy ? 'On a call' : 'Available'; if (p.busy) ss.classList.add('busy'); }
+    who.append(nn, ss);
+    const btn = document.createElement('button'); btn.className = 'btn primary'; btn.textContent = 'Call';
+    btn.disabled = call.phase !== 'idle' || p.busy;
+    btn.onclick = () => startCall(id);
+    li.append(av, who);
+    if (call.peer !== id) li.append(btn);
+    ul.append(li);
+  });
+}
+
+/* ---------------- controls ---------------- */
+function updateCtlButtons() {
+  const a = local?.getAudioTracks()[0], v = local?.getVideoTracks()[0];
+  $('micBtn').disabled = !a; $('camBtn').disabled = !v; $('flipBtn').disabled = !v;
+  $('micBtn').classList.toggle('off', !!a && !a.enabled);
+  $('camBtn').classList.toggle('off', !!v && !v.enabled);
+}
+$('micBtn').onclick = () => { local?.getAudioTracks().forEach(t => t.enabled = !t.enabled); updateCtlButtons(); };
+$('camBtn').onclick = () => { local?.getVideoTracks().forEach(t => t.enabled = !t.enabled); updateCtlButtons(); };
+$('hangBtn').onclick = hangUp;
+$('acceptBtn').onclick = acceptCall;
+$('declineBtn').onclick = declineCall;
+$('fsBtn').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else $('stage').requestFullscreen?.().catch(() => toast('Full screen not available'));
+};
+
+$('flipBtn').onclick = async () => {
+  const old = local?.getVideoTracks()[0]; if (!old) return;
+  const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  if (cams.length < 2) { toast('Only one camera found'); return; }
+  const curId = old.getSettings().deviceId;
+  const next = cams[(cams.findIndex(c => c.deviceId === curId) + 1) % cams.length];
+  let ns;
+  try { ns = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: next.deviceId } } }); }
+  catch (e) { toast('Could not switch camera'); return; }
+  const nt = ns.getVideoTracks()[0];
+  nt.enabled = old.enabled;
+  if (call.phase === 'incall') { try { room.replaceTrack(old, nt, { target: call.peer }); } catch (e) { console.error(e); } }
+  local.removeTrack(old); local.addTrack(nt); old.stop();
+  $('local').srcObject = local;
+  $('local').classList.toggle('noflip', nt.getSettings().facingMode === 'environment');
+  updateCtlButtons();
+};
+
+$('inviteBtn').onclick = async () => {
+  const url = location.origin + location.pathname + '?net=' + encodeURIComponent(netCode)
+    + ($('strat').value !== 'nostr' ? '&via=' + $('strat').value : '');
+  const text = 'Join me on Direct Call' + ($('pass').value ? ' (I\'ll send you the password separately)' : '');
+  if (navigator.share) { try { await navigator.share({ title: 'Direct Call', text, url }); return; } catch {} }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied (password not included)'); }
+  catch { toast(url, 8000); }
+};
+
+$('leaveBtn').onclick = leave;
+function leave() {
+  if (call.phase === 'incall') endCall(null, true);
+  else if (call.phase === 'outgoing') sendSig({ t: 'cancel' }, call.peer);
+  hideIncoming(); resetCall();
+  try { room?.leave(); } catch {}
+  room = null; peers.clear(); remoteStreams.clear();
+  local?.getTracks().forEach(t => t.stop()); local = null;
+  $('app').classList.add('hidden'); $('setup').classList.remove('hidden');
+}
+window.addEventListener('pagehide', () => {
+  if (call.phase === 'incall') sendSig({ t: 'hangup' }, call.peer);
+  try { room?.leave(); } catch {}
+});
+</script>
+</body>
+</html>
